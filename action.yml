@@ -1,0 +1,53 @@
+name: 'Release Milestone'
+description: 'Updates a Github Repo with a commit when a semver milestone is closed'
+inputs:
+  release_notes_folder_path:
+    description: 'path to the folder where the release note files are saved'
+    required: false
+    default: 'docs/release_notes'
+  version:
+    description: The semantic verion (x.y.z)
+    required: false
+    default: ""
+outputs:
+  version:
+    description: "The project's semantic version x.y.z"
+    value: ${{ steps.check-version.outputs.version }}
+  release-id:
+    description: "The ID of the created GitHub release"
+    value: ${{ steps.create-release.outputs.id }}
+  release-url:
+    description: "Github.com URL for the created GitHub release"
+    value: ${{ steps.create-release.outputs.url }}
+runs:
+  using: "composite"
+  steps:
+    - name: Check release name
+      id: version-check
+      run: |
+        echo "Milestone Title: ${{ github.event.milestone.title }}"
+        pip install semver
+        SPLICED_TITLE=`echo "${{ github.event.milestone.title }}" | cut -d'v' -f 2`
+        pysemver check ${SPLICED_TITLE}
+        echo "::set-output name=version::$(echo $SPLICED_TITLE)"
+      shell: bash -l {0}
+    - uses: actions/download-artifact@v2
+      with:
+        path: ${{ runner.temp }}/release_artifacts
+    - name: View Downloaded Artifacts
+      run: |
+        ls -al ${{ runner.temp }}/release_artifacts
+      shell: bash -l {0}
+    - uses: softprops/action-gh-release@v1
+      id: create-release
+      with:
+        tag_name: ${{ github.event.milestone.title }}
+        name: ${{ github.event.milestone.title }}
+        body_path: ${{ inputs.release_notes_folder_path }}/${{ github.event.milestone.title }}.md
+        draft: true
+        files: |
+          ${{ runner.temp }}/release_artifacts/**
+
+branding:
+  icon: 'package'
+  color: 'green'
